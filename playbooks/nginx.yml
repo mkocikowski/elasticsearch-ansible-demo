@@ -1,0 +1,15 @@
+---
+
+- name: nginx base install and configuration
+  hosts: elasticsearch
+  remote_user: admin
+  sudo: yes
+  
+  tasks: 
+  - name: add current ppa stable nginx repo
+    apt_repository: repo='ppa:nginx/stable' state=present update_cache=yes
+  - name: install latest nginx-full
+    apt: pkg=nginx-full update_cache=no state=latest
+  - name: ensure nginx is running and set to come up on startup
+    service: name=nginx state=started enabled=yes
+

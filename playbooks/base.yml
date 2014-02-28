@@ -1,0 +1,54 @@
+---
+
+- name: basic host configuration, create 'admin' user
+  hosts: elasticsearch
+  remote_user: root
+  sudo: yes
+
+  tasks: 
+  - name: update sudoers - group 'sudo' with NOPASSWD
+    lineinfile: "dest=/etc/sudoers state=present regexp='^%sudo' line='%sudo ALL=(ALL:ALL) NOPASSWD: ALL'"
+    register: sudoers
+  - name: bounce sudo daemon
+    service: name=sudo state=restarted
+    when: sudoers.changed
+  - name: add 'admin' group
+    group: name=admin state=present
+  - name: add user 'admin' with groups 'admin,sudo'
+    user: name=admin group=admin groups=sudo shell=/bin/bash
+  - name: add authorized_keys for user admin
+    authorized_key: user=admin key="{{ lookup('file', '~/.ssh/control_id_rsa.pub') }}"
+  - name: locale gen
+    command: locale-gen en_US
+    changed_when: False # force it to not report change
+
+
+- name: update apt, install base dependencies
+  hosts: elasticsearch
+  remote_user: admin
+  sudo: yes
+  
+  tasks:
+  - name: apt update and upgrade
+    apt: update_cache=yes upgrade=safe cache_valid_time=3600
+  - name: install build-essential
+    apt: pkg=build-essential update_cache=no state=latest
+  - name: install headless JRE
+    apt: pkg=openjdk-7-jre-headless update-cache=no state=latest
+  - name: install git
+    apt: pkg=git update-cache=no state=latest
+  - name: install python-dev
+    apt: pkg=python-dev update-cache=no state=latest
+  - name: install pip
+    apt: pkg=python-pip update-cache=no state=latest
+  - name: install virtualenv
+    apt: pkg=python-virtualenv update-cache=no state=latest
+  - name: install pycurl
+    apt: pkg=python-pycurl update-cache=no state=latest
+  - name: install ipython
+    apt: pkg=ipython update-cache=no state=latest
+  - name: install vim
+    apt: pkg=vim update-cache=no state=latest
+  - name: install curl
+    apt: pkg=curl update-cache=no state=latest
+

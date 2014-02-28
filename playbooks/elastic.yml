@@ -1,0 +1,86 @@
+---
+
+- name: elasticsearch base install and configuration
+  hosts: elasticsearch
+  remote_user: admin
+  sudo: yes
+  
+  vars: 
+    es_url: "https://download.elasticsearch.org/elasticsearch/elasticsearch"
+    es_version: "0.90.7"
+    es_deb: "elasticsearch-{{es_version}}.deb"
+    es_cluster_name: "test"
+    es_data_path: "/var/data/elasticsearch/"
+    es_logs_path: "/var/log/elasticsearch/"
+    es_bind_addr: "{{ansible_eth2.ipv4.address}}"
+    
+  tasks:
+
+  - name: check current elasticsearch installed version
+    shell: "dpkg -s elasticsearch | grep Version" 
+    register: dpkg_installed_es_version
+    changed_when: "dpkg_installed_es_version.stdout != 'Version: {{es_version}}'"
+    failed_when: False
+
+  - name: "fetch elasticsearch: {{es_url}}/{{es_deb}}"
+    get_url: url={{es_url}}/{{es_deb}} dest=/tmp/ thirsty=yes mode=0440
+    register: es_res
+    when: "dpkg_installed_es_version.stdout != 'Version: {{es_version}}'"
+
+  - name: "install elasticsearch package: {{es_deb}}"
+    shell: "dpkg --install --skip-same-version --force-confnew /tmp/{{es_deb}} 2>&1 | grep skipping | wc -l"
+    when: dpkg_installed_es_version.changed
+    notify: restart elasticsearch
+
+  - name: install elasticsearch-head
+    command: /usr/share/elasticsearch/bin/plugin -install mobz/elasticsearch-head creates=/usr/share/elasticsearch/plugins/head
+
+
+  - name: set ulimits for elasticsearch
+    lineinfile: dest=/etc/security/limits.conf insertbefore='^# End of file' line='elasticsearch - memlock unlimited'
+
+  - name: create elasticsearch data directory
+    file: path={{es_data_path}} state=directory owner=elasticsearch group=elasticsearch mode=755
+
+  - name: create elasticsearch logs directory
+    # if you don't create the directory, the node will not come up, just hang
+    file: path={{es_logs_path}} state=directory owner=elasticsearch group=elasticsearch mode=755
+
+
+  - name: template and copy elasticsearch default file
+    template: src=../files/default dest=/etc/default/elasticsearch
+
+  - name: template and copy elasticsearch config file
+    template: src=../files/esnode.yml dest=/etc/elasticsearch/elasticsearch.yml
+    notify:
+    - set discovery.zen.minimum_master_nodes
+
+  - name: "ensure elasticsearch is running"
+    service: name=elasticsearch state=started enabled=yes
+
+
+  - name: template and copy nginx config file
+    template: src=../files/nginx.conf dest=/etc/nginx/sites-available/default
+    notify:
+    - reload nginx
+  - name: template and copy nginx htpasswd file
+    template: src=../files/htpasswd dest=/etc/nginx/ mode=640 owner=www-data group=www-data
+    notify:
+    - reload nginx
+    
+
+    
+  handlers:
+
+  - name: reload nginx
+#    service: name=nginx state=restarted
+    shell: "pkill -SIGHUP nginx"
+
+  - name: restart elasticsearch
+#    service: name=elasticsearch state=restarted
+    shell: "service elasticsearch restart && sleep 10"
+
+  - name: set discovery.zen.minimum_master_nodes
+    # http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/cluster-update-settings.html
+    shell: "curl -XPUT {{es_bind_addr}}:9200/_cluster/settings -d '{\"transient\" : {\"discovery.zen.minimum_master_nodes\": {{(groups['elasticsearch']|length)//2 + 1}} }}'" 
+

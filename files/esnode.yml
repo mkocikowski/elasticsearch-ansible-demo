@@ -1,0 +1,15 @@
+cluster.name: {{es_cluster_name}}
+path.data: {{es_data_path}}
+path.logs: {{es_logs_path}}
+bootstrap.mlockall: true
+network.host: {{es_bind_addr}}
+gateway.expected_nodes: {{(groups['elasticsearch']|length) - 1}}
+discovery.zen.minimum_master_nodes: {{(groups['elasticsearch']|length)//2 + 1}}
+discovery.zen.ping.multicast.enabled: false
+discovery.zen.ping.timeout: 3s
+discovery.zen.ping.unicast.hosts: [{{hostvars[groups['elasticsearch'][0]]['ansible_eth2']['ipv4']['address']}}, {{hostvars[groups['elasticsearch'][1]]['ansible_eth2']['ipv4']['address']}}, {{hostvars[groups['elasticsearch'][2]]['ansible_eth2']['ipv4']['address']}}]
+#discovery.zen.fd.ping_interval: 1s
+#discovery.zen.fd.ping_timeout: 5s
+#discovery.zen.fd.ping_retries: 3
+index.number_of_shards: 1
+index.number_of_replicas: 0

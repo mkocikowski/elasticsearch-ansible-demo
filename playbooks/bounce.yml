@@ -1,0 +1,11 @@
+---
+
+- name: elasticsearch base install and configuration
+  hosts: elasticsearch
+  remote_user: admin
+  sudo: yes
+  
+  tasks:
+  
+  - name: restart elasticsearch
+    service: name=elasticsearch state=restarted
